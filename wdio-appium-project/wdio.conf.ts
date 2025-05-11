@@ -71,10 +71,10 @@ export const config: WebdriverIO.Config = {
     capabilities: [{
       platformName: 'Android',
       'appium:deviceName': 'Android Emulator',
+      'appium:platformVersion': '11.0',
       'appium:automationName': 'UiAutomator2',
-      'appium:app': path.join(__dirname, 'app/Android/LutonRetail.apk'),
-      'appium:noReset': true,
-      'appium:newCommandTimeout': 300
+      'appium:app': './app.apk',
+      'appium:noReset': true
       }
     ],
       reporters: [
