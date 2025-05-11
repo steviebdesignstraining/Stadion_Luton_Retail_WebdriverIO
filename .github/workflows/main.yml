@@ -17,7 +17,8 @@ jobs:
 
     steps:
       - name: Install tar
-        run: apt-get update && apt-get install tar -y
+        run: |
+          apt-get update && apt-get install tar -y
 
       - name: Checkout code
         uses: actions/checkout@v3
@@ -41,4 +42,85 @@ jobs:
         working-directory: ./wdio-appium-project
         run: npm install
 
-      - name:
+      - name: Set up Android SDK and AVD
+        run: |
+          # Install Android SDK tools
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          
+          # Download and unzip the command line tools
+          curl -O https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
+          unzip commandlinetools-linux-10406996_latest.zip
+          rm commandlinetools-linux-10406996_latest.zip
+          mv cmdline-tools latest
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+
+          # Set up environment variables
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+
+          # Accept licenses and install necessary SDK components
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-30" "system-images;android-30;default;armeabi-v7a"
+          
+          # Create the AVD (ARM-based emulator)
+          echo "no" | avdmanager create avd -n test -k "system-images;android-30;default;armeabi-v7a" --device "Nexus 6"
+
+      - name: Set up Android Emulator and Run Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: arm
+          profile: Nexus 6
+          emulator-options: "-no-window -no-audio"
+          script: |
+            set -e
+            wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/LutonRetail.apk -O ./wdio-appium-project/app.apk
+            cd wdio-appium-project
+
+            echo "Waiting for emulator to fully boot..."
+            booted="0"
+            attempts=0
+
+            while [[ "$booted" != "1" && $attempts -lt 3 ]]; do
+              echo "Checking if emulator is booted... (attempt $((attempts+1)))"
+              adb kill-server || true
+              adb start-server || true
+              adb wait-for-device || true
+              booted=$(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r')
+              adb devices
+              sleep 15
+              attempts=$((attempts+1))
+            done
+
+            if [[ "$booted" != "1" ]]; then
+              echo "Emulator failed to boot after 3 attempts. Exiting."
+              exit 1
+            fi
+
+            echo "Emulator is online and ready. Starting tests..."
+            npx wdio run wdio.conf.js
+
+      - name: Install Allure commandline
+        run: npm install -g allure-commandline --save-dev
+
+      - name: Generate Allure report
+        working-directory: ./wdio-appium-project
+        run: |
+          allure generate allure-results --clean -o allure-report
+
+      - name: Upload Allure report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: wdio-appium-project/allure-report
+
+      - name: Deploy Allure report to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./wdio-appium-project/allure-report
+          force_orphan: true
