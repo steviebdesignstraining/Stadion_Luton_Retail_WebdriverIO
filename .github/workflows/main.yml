@@ -46,6 +46,19 @@ jobs:
           script: |
             wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/LutonRetail.apk -O ./wdio-appium-project/app.apk
             cd wdio-appium-project
+
+            # Start the emulator
+            emulator -avd Nexus_6_API_30 -no-window -no-audio &
+
+            # Wait for the device to be ready
+            adb wait-for-device
+            adb shell getprop sys.boot_completed
+
+            # Restart ADB if necessary
+            adb kill-server
+            adb start-server
+
+            # Run the tests after emulator is ready
             npx wdio run wdio.conf.js
 
       - name: Install Allure commandline
