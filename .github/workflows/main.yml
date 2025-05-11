@@ -27,4 +27,5 @@ jobs:
           jq 'if .dependencies["fsevents"] then
                 .optionalDependencies["fsevents"] = .dependencies["fsevents"] |
                 del(.dependencies["fsevents"])
-              else . end' package.json > tmp.json &&
+              else . end' package.json > tmp.json
+          mv tmp.json package.json
