@@ -44,32 +44,35 @@ jobs:
           profile: Nexus 6
           emulator-options: "-no-window -no-audio"
           script: |
+            set -e
             wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/LutonRetail.apk -O ./wdio-appium-project/app.apk
             cd wdio-appium-project
 
-            # Start emulator in background
-            emulator -avd Nexus_6_API_30 -no-window -no-audio &
+            echo "Waiting for emulator to fully boot..."
+            booted="0"
+            attempts=0
 
-            # Wait for the device to be ready
-            echo "Waiting for emulator to be ready..."
-            adb wait-for-device
-            adb shell getprop sys.boot_completed
-
-            # Check if emulator is online, if not restart adb server
-            adb devices
-            if [[ $(adb devices | grep -c "emulator-5554") -eq 0 ]]; then
-              echo "Emulator is not connected. Restarting adb server."
-              adb kill-server
-              adb start-server
+            while [[ "$booted" != "1" && $attempts -lt 3 ]]; do
+              echo "Checking if emulator is booted... (attempt $((attempts+1)))"
+              adb kill-server || true
+              adb start-server || true
+              adb wait-for-device || true
+              booted=$(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r')
               adb devices
+              sleep 15
+              attempts=$((attempts+1))
+            done
+
+            if [[ "$booted" != "1" ]]; then
+              echo "Emulator failed to boot after 3 attempts. Exiting."
+              exit 1
             fi
 
-            # Run the tests after emulator is ready
+            echo "Emulator is online and ready. Starting tests..."
             npx wdio run wdio.conf.js
 
       - name: Install Allure commandline
-        run: |
-          npm install -g allure-commandline --save-dev
+        run: npm install -g allure-commandline --save-dev
 
       - name: Generate Allure report
         working-directory: ./wdio-appium-project
@@ -82,27 +85,10 @@ jobs:
           name: allure-report
           path: wdio-appium-project/allure-report
 
-      - name: Set up GitHub Pages branch
-        run: |
-          # Configure git for commit
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          # Checkout gh-pages branch (if it doesn't exist, create it)
-          git checkout -b gh-pages
-
-          # Clean the folder and copy Allure report
-          rm -rf *
-          cp -r wdio-appium-project/allure-report/* .
-
-          # Commit and push the Allure report to the gh-pages branch
-          git add .
-          git commit -m "Update Allure Report"
-          git push --force origin gh-pages
-
-      - name: GitHub Pages Deployment
+      - name: Deploy Allure report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          branch: gh-pages
-          folder: ./wdio-appium-project/allure-report
-          target_branch: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./wdio-appium-project/allure-report
+          force_orphan: true
