@@ -16,9 +16,10 @@ jobs:
       PATH: $HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH
 
     steps:
-      - name: Install tar
+      - name: Install dependencies (tar, jq, etc.)
         run: |
-          apt-get update && apt-get install tar -y
+          sudo apt-get update
+          sudo apt-get install -y tar jq curl unzip
 
       - name: Checkout code
         uses: actions/checkout@v3
@@ -31,7 +32,6 @@ jobs:
       - name: Move fsevents to optionalDependencies (CI fix)
         working-directory: ./wdio-appium-project
         run: |
-          apt-get install jq -y
           jq 'if .dependencies["fsevents"] then
                 .optionalDependencies["fsevents"] = .dependencies["fsevents"] |
                 del(.dependencies["fsevents"])
@@ -124,3 +124,10 @@ jobs:
           publish_branch: gh-pages
           publish_dir: ./wdio-appium-project/allure-report
           force_orphan: true
+
+      - name: Send Allure report to Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          slack_token: ${{ secrets.SLACK_TOKEN }}
+          channel: '#your-slack-channel'
+          text: "The Allure report is ready! Check it out at https://your-username.github.io/your-repo-name/allure-report/"
