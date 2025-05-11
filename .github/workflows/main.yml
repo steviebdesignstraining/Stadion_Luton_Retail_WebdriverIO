@@ -36,7 +36,7 @@ jobs:
 
       - name: Download APK
         run: |
-          wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/StadionRetailerApp-release.apk -O wdio-appium-project/app.apk
+          wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/LutonRetail.apk -O wdio-appium-project/app.apk
 
       - name: Run tests
         working-directory: ./wdio-appium-project
