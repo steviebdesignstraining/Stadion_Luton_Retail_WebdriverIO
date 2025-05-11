@@ -34,3 +34,10 @@ jobs:
       - name: Start Appium server in background
         run: |
           nohup appium --log ./wdio-appium-project/appium.log &
+          sleep 10
+
+      - name: Run WebdriverIO tests
+        working-directory: ./wdio-appium-project
+        run: |
+          echo "Running E2E tests..."
+          npx
