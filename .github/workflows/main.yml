@@ -1,0 +1,61 @@
+name: Run Android E2E Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        working-directory: ./wdio-appium-project
+        run: npm ci
+
+      - name: Download APK from GitHub Release
+        run: |
+          wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/Stadion.apk -O ./wdio-appium-project/app.apk
+
+      - name: Install Appium globally
+        run: npm install -g appium
+
+      - name: Start Appium server in background
+        run: |
+          nohup appium --log ./wdio-appium-project/appium.log &
+
+      - name: Wait for Appium to be ready
+        run: sleep 10
+
+      - name: Run WebdriverIO tests
+        working-directory: ./wdio-appium-project
+        run: npx wdio run wdio.conf.ts
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: wdio-test-report
+          path: ./wdio-appium-project/reports/html
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "📱 Android UI Tests executed.\n• Status: ${{ job.status }}\n• Repository: ${{ github.repository }}\n• Branch: ${{ github.ref_name }}\n• Triggered by: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
