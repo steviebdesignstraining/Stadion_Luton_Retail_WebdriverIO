@@ -11,6 +11,9 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      ANDROID_HOME: ${{ runner.temp }}/android-sdk
+      PATH: ${{ runner.temp }}/android-sdk/cmdline-tools/latest/bin:${{ runner.temp }}/android-sdk/platform-tools:$PATH
 
     steps:
       - name: Checkout code
@@ -37,32 +40,64 @@ jobs:
 
       - name: Set up Android SDK and AVD
         run: |
+          # Install Android SDK tools
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          
+          # Download and unzip the command line tools
+          curl -O https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
+          unzip commandlinetools-linux-10406996_latest.zip
+          rm commandlinetools-linux-10406996_latest.zip
+          mv cmdline-tools latest
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+
+          # Set up environment variables
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+
+          # Accept licenses and install necessary SDK components
           yes | sdkmanager --licenses
           sdkmanager "platform-tools" "platforms;android-30" "system-images;android-30;default;armeabi-v7a"
+          
+          # Create the AVD (ARM-based emulator)
           echo "no" | avdmanager create avd -n test -k "system-images;android-30;default;armeabi-v7a" --device "Nexus 6"
 
-      - name: Start ARM Emulator (cold boot)
-        run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd test -no-audio -no-window -accel off &
-          adb wait-for-device
-          echo "Waiting for emulator to fully boot..."
-          booted="0"
-          attempts=0
-          while [[ "$booted" != "1" && $attempts -lt 10 ]]; do
-            booted=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            sleep 15
-            attempts=$((attempts+1))
-          done
-          if [[ "$booted" != "1" ]]; then
-            echo "Emulator failed to boot. Exiting."
-            exit 1
-          fi
+      - name: Set up Android Emulator and Run Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: arm
+          profile: Nexus 6
+          emulator-options: "-no-window -no-audio"
+          script: |
+            set -e
+            wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/LutonRetail.apk -O ./wdio-appium-project/app.apk
+            cd wdio-appium-project
 
-      - name: Run Appium E2E tests
-        run: |
-          wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/LutonRetail.apk -O ./wdio-appium-project/app.apk
-          cd wdio-appium-project
-          npx wdio run wdio.conf.js
+            echo "Waiting for emulator to fully boot..."
+            booted="0"
+            attempts=0
+
+            while [[ "$booted" != "1" && $attempts -lt 3 ]]; do
+              echo "Checking if emulator is booted... (attempt $((attempts+1)))"
+              adb kill-server || true
+              adb start-server || true
+              adb wait-for-device || true
+              booted=$(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r')
+              adb devices
+              sleep 15
+              attempts=$((attempts+1))
+            done
+
+            if [[ "$booted" != "1" ]]; then
+              echo "Emulator failed to boot after 3 attempts. Exiting."
+              exit 1
+            fi
+
+            echo "Emulator is online and ready. Starting tests..."
+            npx wdio run wdio.conf.js
 
       - name: Install Allure commandline
         run: npm install -g allure-commandline --save-dev
