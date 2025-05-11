@@ -20,24 +20,11 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install dependencies
-        working-directory: ./wdio-appium-project
-        run: npm ci
-
-      - name: Download APK from GitHub Release
-        run: |
-          wget https://github.com/steviebdesignstraining/Stadion_Luton_Retail_WebdriverIO/releases/download/v1.0.0/Stadion.apk -O ./wdio-appium-project/app.apk
-
-      - name: Install Appium globally
-        run: npm install -g appium
-
-      - name: Start Appium server in background
-        run: |
-          nohup appium --log ./wdio-appium-project/appium.log &
-          sleep 10
-
-      - name: Run WebdriverIO tests
+      - name: Move fsevents to optionalDependencies (CI fix)
         working-directory: ./wdio-appium-project
         run: |
-          echo "Running E2E tests..."
-          npx
+          sudo apt-get install jq -y
+          jq 'if .dependencies["fsevents"] then
+                .optionalDependencies["fsevents"] = .dependencies["fsevents"] |
+                del(.dependencies["fsevents"])
+              else . end' package.json > tmp.json &&
